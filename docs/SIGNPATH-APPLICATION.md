@@ -1,6 +1,6 @@
 # SignPath Foundation application draft
 
-Status: prepared for maintainer review; not submitted. No signing approval has been granted.
+Status: the maintainer submitted the application on 18 October 2026; the application page confirmed receipt. This file preserves the prepared project information. Personal contact details and agreements were entered directly by the maintainer. No signing approval has been granted.
 
 | Form field | Proposed response |
 | --- | --- |

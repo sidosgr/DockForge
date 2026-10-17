@@ -2,11 +2,11 @@
 
 DockForge is a Windows desktop toolbar application inspired by Linkbar, implemented in a new C# / WPF codebase under the MIT license.
 
-**Current status: development build 0.1.4. This is not yet the fully verified release described in the product specification.** The implementation builds for x64 and ARM64. Local Windows 11 x64 checks are recorded in `docs/VERIFICATION.md`. Windows 10, ARM hardware, installer execution, and several shell interactions still need verification. Unsupported Explorer integrations are called out explicitly below.
+**Current status: development build 0.1.5. This is not yet the fully verified release described in the product specification.** The implementation builds for x64 and ARM64. Local Windows 11 x64 checks are recorded in `docs/VERIFICATION.md`. Windows 10, ARM hardware, installer execution, and several shell interactions still need verification. Unsupported Explorer integrations are called out explicitly below.
 
 ## Download and install
 
-Download **DockForge-Setup-0.1.4.exe** from the [0.1.4 development release](https://github.com/sidosgr/DockForge/releases/tag/v0.1.4). One installer includes both x64 and ARM64 and selects the native build automatically; a separate .NET installation is not required. The release also includes a SHA-256 checksum file.
+Download **DockForge-Setup-0.1.5.exe** from the [0.1.5 development release](https://github.com/sidosgr/DockForge/releases/tag/v0.1.5). One installer includes both x64 and ARM64 and selects the native build automatically; a separate .NET installation is not required. The release also includes a SHA-256 checksum file.
 
 Run the installer and follow the setup wizard. DockForge targets Windows 10 22H2 or later and Windows 11. This development installer is unsigned. Read the [verification record](docs/VERIFICATION.md) before relying on shell integration features.
 
@@ -41,7 +41,7 @@ To build both self-contained applications without installers:
 ./build.ps1 -SkipInstallers
 ```
 
-Outputs: `artifacts/publish/win-x64`, `artifacts/publish/win-arm64`, and the combined `artifacts/installers/DockForge-Setup-0.1.4.exe`. The installer selects the native architecture automatically.
+Outputs: `artifacts/publish/win-x64`, `artifacts/publish/win-arm64`, and the combined `artifacts/installers/DockForge-Setup-0.1.5.exe`. The installer selects the native architecture automatically.
 
 ## Run and test
 
@@ -65,11 +65,15 @@ Normal settings and local logs live in `%LOCALAPPDATA%\DockForge`. Settings impo
 - Existing applications send progress and overlay badges to Explorer. This build does **not** intercept or display those signals. The requested badge/progress feature remains outstanding; the saved preference is not evidence of support.
 - Thumbnail desktop previews use a DWM thumbnail overlay. This is an approximation of Windows Peek, not Explorer's private Peek implementation. Minimized-window previews depend on DWM availability.
 - Windows taskbar styling is recreated using native icons, theme colors and composition effects. Pixel-identical appearance across Windows builds has not been established.
-- Installers are unsigned development artifacts. No signing certificate has been configured. In Settings, use `sidosgr/DockForge` as the release repository for update checks. The current 0.1.4 build is a prerelease; automatic checks target stable GitHub releases.
+- Installers are unsigned development artifacts. The SignPath Foundation application was submitted on 18 October 2026; approval and a production signing identity are still pending. Update checks use `sidosgr/DockForge` automatically, including for existing installations. Development previews are included by default; disable that option for stable releases only.
 
 ## Release preparation
 
 The GitHub workflow runs core checks, builds both self-contained applications, and packages one combined installer with checksums. Workflow runs retain the installer as a downloadable artifact; publishing a release is a separate step. Before a stable release, complete the verification matrix and sign installers if a certificate is available. Automatic update checks notify and request permission to open a download; they never install silently.
+
+## Code signing policy
+
+Current releases remain unsigned while SignPath Foundation onboarding is pending. See the [code signing policy](docs/CODE-SIGNING.md), [privacy policy](docs/PRIVACY.md), and [application draft](docs/SIGNPATH-APPLICATION.md). The prepared signing workflow is disabled until approval and credentials are configured; it does not publish releases automatically.
 
 ## License and reference
 

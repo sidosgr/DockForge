@@ -23,7 +23,7 @@ public sealed class Settings {
  public bool StartAtSignIn { get; set; } = true;
  public bool ConfirmCloseAll { get; set; } = true;
  public bool CheckUpdates { get; set; } = true;
- public string UpdateRepository { get; set; } = "";
+ public bool IncludePreviewUpdates { get; set; } = true;
  public List<string> HiddenTaskbarMonitors { get; set; } = [];
  public List<Bar> Bars { get; set; } = [];
  public bool SetupComplete { get; set; }

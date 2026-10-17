@@ -1,0 +1,113 @@
+name: Sign DockForge release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  sign:
+    if: vars.SIGNPATH_ENABLED == 'true'
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Verify release tag and signing configuration
+        id: release
+        shell: pwsh
+        env:
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          $version = ([xml](Get-Content Directory.Build.props -Raw)).Project.PropertyGroup.Version
+          if ($env:GITHUB_REF -ne "refs/tags/v$version") { throw 'Select the matching version tag when dispatching this workflow.' }
+          foreach ($key in @('SIGNPATH_ORGANIZATION_ID','SIGNPATH_PROJECT_SLUG','SIGNPATH_SIGNING_POLICY_SLUG','SIGNPATH_API_TOKEN')) {
+            if (![Environment]::GetEnvironmentVariable($key)) { throw "Missing signing configuration: $key" }
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Test and publish applications
+        shell: pwsh
+        run: |
+          ./build.ps1 -SkipInstallers
+          foreach ($rid in @('win-x64','win-arm64')) {
+            New-Item -ItemType Directory -Force "artifacts/signing/input/apps/$rid" | Out-Null
+            foreach ($name in @('DockForge.exe','DockForge.dll','DockForge.Core.dll')) {
+              Copy-Item -LiteralPath "artifacts/publish/$rid/$name" -Destination "artifacts/signing/input/apps/$rid/$name"
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        id: app-artifact
+        with:
+          name: DockForge-apps-for-signing
+          path: artifacts/signing/input/apps/
+          if-no-files-found: error
+      - name: Request application signatures and wait for approval
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: app-binaries
+          github-artifact-id: ${{ steps.app-artifact.outputs.artifact-id }}
+          parameters: |
+            version: "${{ steps.release.outputs.version }}"
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: artifacts/signing/output/apps
+      - name: Verify and package signed application binaries
+        shell: pwsh
+        run: |
+          $signedFiles = foreach ($rid in @('win-x64','win-arm64')) {
+            foreach ($name in @('DockForge.exe','DockForge.dll','DockForge.Core.dll')) {
+              "artifacts/signing/output/apps/$rid/$name"
+            }
+          }
+          ./scripts/Verify-SignedArtifacts.ps1 -Path $signedFiles
+          foreach ($rid in @('win-x64','win-arm64')) {
+            foreach ($name in @('DockForge.exe','DockForge.dll','DockForge.Core.dll')) {
+              Copy-Item -LiteralPath "artifacts/signing/output/apps/$rid/$name" -Destination "artifacts/publish/$rid/$name"
+            }
+          }
+          ./build.ps1 -SkipPublish -RequireSignedPayload -InnoCompiler "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+      - uses: actions/upload-artifact@v4
+        id: installer-artifact
+        with:
+          name: DockForge-installer-for-signing
+          path: artifacts/installers/DockForge-Setup-${{ steps.release.outputs.version }}.exe
+          if-no-files-found: error
+      - name: Request installer signature and wait for approval
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.installer-artifact.outputs.artifact-id }}
+          parameters: |
+            version: "${{ steps.release.outputs.version }}"
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: artifacts/signed-release
+      - name: Verify final installer and generate checksums
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          $installer = "artifacts/signed-release/DockForge-Setup-$env:RELEASE_VERSION.exe"
+          $allSigned = @($installer) + @(foreach ($rid in @('win-x64','win-arm64')) { foreach ($name in @('DockForge.exe','DockForge.dll','DockForge.Core.dll')) { "artifacts/publish/$rid/$name" } })
+          ./scripts/Verify-SignedArtifacts.ps1 -Path $allSigned
+          Get-FileHash -LiteralPath $installer -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Set-Content artifacts/signed-release/SHA256SUMS.txt
+          Copy-Item -LiteralPath docs/HELP.html -Destination artifacts/signed-release/DockForge-Help.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DockForge-signed-release
+          path: artifacts/signed-release/*
+          if-no-files-found: error

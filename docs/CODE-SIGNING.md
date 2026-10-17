@@ -2,7 +2,7 @@
 
 ## Current status
 
-DockForge is applying to the SignPath Foundation open-source program. **The application has not yet been accepted and current releases are unsigned.** Preparing configuration files does not provide a certificate or a trusted signature.
+The DockForge maintainer submitted an application to the SignPath Foundation open-source program on 18 October 2026. **The application has not yet been accepted and current releases are unsigned.** Preparing configuration files does not provide a certificate or a trusted signature.
 
 If accepted, the intended attribution is: Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org). The certificate's publisher will be SignPath Foundation, rather than the maintainer's personal name.
 

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters><parameter name="version" required="true" /></parameters>
+  <zip-file>
+    <directory path="win-x64">
+      <pe-file path="DockForge.exe" product-name="DockForge" product-version="${version}*"><authenticode-sign /></pe-file>
+      <pe-file path="DockForge.dll" product-name="DockForge" product-version="${version}*"><authenticode-sign /></pe-file>
+      <pe-file path="DockForge.Core.dll" product-name="DockForge" product-version="${version}*"><authenticode-sign /></pe-file>
+    </directory>
+    <directory path="win-arm64">
+      <pe-file path="DockForge.exe" product-name="DockForge" product-version="${version}*"><authenticode-sign /></pe-file>
+      <pe-file path="DockForge.dll" product-name="DockForge" product-version="${version}*"><authenticode-sign /></pe-file>
+      <pe-file path="DockForge.Core.dll" product-name="DockForge" product-version="${version}*"><authenticode-sign /></pe-file>
+    </directory>
+  </zip-file>
+</artifact-configuration>

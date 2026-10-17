@@ -122,3 +122,18 @@ These render checks verify the composited visual contents and transition state o
 - Result: 23 core assertions and 103 Windows integration checks, zero warnings/errors. The first repeat checks exposed stale-fixture and overly broad glyph-versus-label assertions; those test issues were corrected before accepting the final suite.
 
 Evidence includes group-icons-only.png, bar-drop-cue.png and results.txt in smoke-results, plus artifacts/guide/guide-preview.png. GitHub setup and upload are deliberately deferred until requested after account/repository setup.
+
+## 0.1.5 official updates and signing preparation
+
+Date: 18 October 2026. The public repository is now https://github.com/sidosgr/DockForge.
+
+- Update requests use the fixed official repository, including when loading older settings with an empty or custom UpdateRepository field. Existing CheckUpdates=false preferences remain disabled. There is no editable update repository field.
+- The release list supports development previews (enabled by default) and a stable-only option. Drafts, current/older versions, unsupported architectures, incompatible asset names and download URLs outside the official repository are excluded. The combined installer is preferred, with a legacy architecture-specific fallback.
+- The installed assembly supplies the displayed and compared version; update checks no longer use a separately hard-coded version string. Empty release lists are handled normally. Development sandbox startup does not make automatic update requests.
+- 36 offline core assertions passed; two additional live GitHub feed checks also passed (38 total). The application compiled with zero warnings and zero errors.
+- 107 isolated Windows integration checks passed. The update settings show sidosgr/DockForge, expose no repository edit field, apply the preview preference and restore it on Cancel. The rest of the existing bar/group/preview/recovery checks also passed. Evidence: artifacts/publish/win-x64/smoke-results/results.txt and settings-updates.png.
+- The signing gate rejects unsigned payloads. Both proposed SignPath artifact XML files validate against the provider's published schema, and workflow PowerShell blocks pass syntax parsing. Metadata restrictions were checked against the actual app and Inno installer version resources.
+- The maintainer submitted the SignPath Foundation application; the application page displayed “Form submitted” on 18 October 2026. Approval, a production signing identity and live signing execution remain pending. No real signed artifact has been produced or verified. The manual signing workflow remains disabled until onboarding is completed.
+- The prepared signing workflow covers the six owned application binaries and the outer installer. Generated-uninstaller signing requires a separate integration; see docs/CODE-SIGNING.md. It must not be described as fully signed installation lifecycle coverage.
+
+Windows 10, ARM64 hardware and the full installation/upgrade/uninstallation matrix remain unverified. The 0.1.5 installer is still an unsigned development build.
