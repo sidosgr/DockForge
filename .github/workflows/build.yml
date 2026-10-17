@@ -1,0 +1,27 @@
+name: Build DockForge
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run tests and build the combined installer
+        shell: pwsh
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $compiler)) { throw 'Install Inno Setup 6.7+ on this runner.' }
+          ./build.ps1 -InnoCompiler $compiler
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DockForge-installers
+          path: artifacts/installers/*
+          if-no-files-found: error
