@@ -2,11 +2,11 @@
 
 DockForge is a Windows desktop toolbar application inspired by Linkbar, implemented in a new C# / WPF codebase under the MIT license.
 
-**Current status: development build 0.1.6. This is not yet the fully verified release described in the product specification.** The implementation builds for x64 and ARM64. Local Windows 11 x64 checks are recorded in `docs/VERIFICATION.md`. Windows 10, ARM hardware, installer execution, and several shell interactions still need verification. Unsupported Explorer integrations are called out explicitly below.
+**Current status: development build 0.1.7. This is not yet the fully verified release described in the product specification.** The implementation builds for x64 and ARM64. Local Windows 11 x64 checks are recorded in `docs/VERIFICATION.md`. Windows 10, ARM hardware, installer execution, and several shell interactions still need verification. Unsupported Explorer integrations are called out explicitly below.
 
 ## Download and install
 
-Download **DockForge-Setup-0.1.6.exe** from the [0.1.6 development release](https://github.com/sidosgr/DockForge/releases/tag/v0.1.6). One installer includes both x64 and ARM64 and selects the native build automatically; a separate .NET installation is not required. The release also includes a SHA-256 checksum file.
+Download **DockForge-Setup-0.1.7.exe** from the [0.1.7 development release](https://github.com/sidosgr/DockForge/releases/tag/v0.1.7). One installer includes both x64 and ARM64 and selects the native build automatically; a separate .NET installation is not required. The release also includes a SHA-256 checksum file.
 
 Run the installer and follow the setup wizard. DockForge targets Windows 10 22H2 or later and Windows 11. This development installer is unsigned. Read the [verification record](docs/VERIFICATION.md) before relying on shell integration features.
 
@@ -32,6 +32,8 @@ Select a bar in Settings → Bars → Appearance, then choose **Windows XP** und
 
 ## User guide
 
+In **Settings → Backups & updates**, the version area shows check results, available versions, download progress and errors inline. Choose **Download update**, then **Install update** after verification. DockForge saves settings, checks the installer again and closes after setup starts. Windows security and setup prompts still apply. Version 0.1.7 must be installed once to enable this flow in older installations.
+
 Open [the complete illustrated guide](docs/HELP.html) in a browser. It is a single offline HTML file with search, light/dark themes, responsive navigation and printing styles. The app bundles the same file and links to it from a concise formatted Help tab.
 
 ## Build
@@ -48,7 +50,7 @@ To build both self-contained applications without installers:
 ./build.ps1 -SkipInstallers
 ```
 
-Outputs: `artifacts/publish/win-x64`, `artifacts/publish/win-arm64`, and the combined `artifacts/installers/DockForge-Setup-0.1.6.exe`. The installer selects the native architecture automatically.
+Outputs: `artifacts/publish/win-x64`, `artifacts/publish/win-arm64`, and the combined `artifacts/installers/DockForge-Setup-0.1.7.exe`. The installer selects the native architecture automatically.
 
 ## Run and test
 
@@ -76,7 +78,7 @@ Normal settings and local logs live in `%LOCALAPPDATA%\DockForge`. Settings impo
 
 ## Release preparation
 
-The GitHub workflow runs core checks, builds both self-contained applications, and packages one combined installer with checksums. Workflow runs retain the installer as a downloadable artifact; publishing a release is a separate step. Before a stable release, complete the verification matrix and sign installers if a certificate is available. Automatic update checks notify and request permission to open a download; they never install silently.
+The GitHub workflow runs core checks, builds both self-contained applications, and packages one combined installer with checksums. Workflow runs retain the installer as a downloadable artifact; publishing a release is a separate step. Before a stable release, complete the verification matrix and sign installers if a certificate is available. Update checks report status inline in the version area. Download update fetches and verifies the installer inside DockForge; Install update saves settings, verifies the file again and launches setup. Download and installation require explicit actions.
 
 ## Code signing policy
 

@@ -1,6 +1,6 @@
 # DockForge privacy policy
 
-Effective date: 18 October 2026.
+Effective date: 21 October 2026.
 
 DockForge stores configuration, backups and diagnostic logs on your computer, normally under `%LOCALAPPDATA%\DockForge`. It reads local shortcuts, selected folders, monitor information and running-window information to provide its taskbar features. It does not send this information to the maintainer, an analytics service or a crash-reporting service.
 
@@ -10,7 +10,11 @@ When **Check GitHub Releases at startup** is enabled, DockForge requests release
 
 These requests send standard network information to GitHub, including your IP address, HTTP headers and a User-Agent containing the DockForge version. They do not include your settings, desktop contents, running applications, file paths, personal identifiers or diagnostic logs. GitHub processes requests according to its [privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
 
-When an update is available, DockForge asks before opening the official installer download in your browser. It does not install updates silently. Development previews are included by default in development builds; you can turn that option off to check stable releases only.
+Check results, availability, download progress and errors appear in the version area under Settings → Backups & updates. These checks do not open popups. Development previews are included by default in development builds; you can turn that option off to check stable releases only.
+
+Choosing **Download update** downloads the official installer directly from GitHub and its download CDN. These requests send standard network information to GitHub, such as your IP address and DockForge version; no settings or logs are uploaded. Downloaded installers are cached locally in `%LOCALAPPDATA%\DockForge\Updates`. The app checks the release's SHA-256 digest and size and retains Windows' normal security handling for Internet downloads.
+
+Choosing **Install update** saves the current settings, verifies the cached installer again and launches it locally. DockForge closes after the installer starts, restoring Windows taskbar visibility. Windows and the setup wizard may display their normal prompts. Downloads and installation do not start automatically.
 
 ## Actions you request
 

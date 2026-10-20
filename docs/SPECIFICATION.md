@@ -8,7 +8,7 @@ Status: implementation contract, not a claim of completed verification.
 - Standard installer/uninstaller, current-user installation by default and optional all-users installation. Per-user settings. No portable release.
 - English interface. No telemetry. Local rotating diagnostics and user-triggered export.
 - Start at sign-in by default, user can disable it.
-- Local installers first. GitHub Releases update checks, notification and explicit download/install; repository configured later. Never silently install updates.
+- GitHub Releases updates use sidosgr/DockForge. Check results, availability, progress and errors appear inline in the version area. Download and verify installers inside the app; installation starts only after the explicit Install update action, saving settings and closing DockForge after setup starts. Never silently install updates.
 - Anvil with dock motif app icon. Offline Help in Settings.
 - Full feature set requested before final handover; implementation and platform limitations must remain explicitly tracked.
 

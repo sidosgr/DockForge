@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace DockForge.Core;
 
-public sealed record ReleaseUpdate(Version Version, string Tag, string DownloadUrl, bool IsPreview);
+public sealed record ReleaseUpdate(Version Version, string Tag, string DownloadUrl, bool IsPreview, string Sha256 = "", long Size = 0);
 
 public static class UpdateFeed {
  public const string Repository = "sidosgr/DockForge";
@@ -29,7 +29,10 @@ public static class UpdateFeed {
     string name = Text(asset, "name"), url = Text(asset, "browser_download_url");
     string expected = $"https://github.com/{Repository}/releases/download/{Uri.EscapeDataString(tag)}/{Uri.EscapeDataString(name)}";
     if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !string.Equals(uri.AbsoluteUri, expected, StringComparison.Ordinal)) continue;
-    candidates.Add(new(version, tag, url, preview));
+    string digest = Text(asset, "digest");
+    string sha256 = digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase) ? digest[7..] : "";
+    long size = asset.TryGetProperty("size", out var sizeValue) && sizeValue.TryGetInt64(out var bytes) ? bytes : 0;
+    candidates.Add(new(version, tag, url, preview, sha256, size));
     break;
    }
   }

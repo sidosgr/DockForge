@@ -41,4 +41,15 @@ if(args.Contains("--live-updates")) {
  Check(UpdateFeed.FindUpdate(liveJson,new(0,0,0),true,"x64") is not null,"Live official GitHub releases resolve a compatible download");
  Check(UpdateFeed.FindUpdate(liveJson,new(99,0,0),true,"arm64") is null,"Live official feed does not offer older releases as updates");
 }
+await UpdateScenarios.Run(Check);
+if(args.Contains("--live-download")) {
+ using var http=new System.Net.Http.HttpClient{Timeout=Timeout.InfiniteTimeSpan};http.DefaultRequestHeaders.UserAgent.ParseAdd("DockForge-Download-Verification/0.1.7");
+ string cache=Path.Combine(Path.GetTempPath(),"DockForge-live-update-"+Guid.NewGuid().ToString("N"));
+ var updates=new UpdateClient(http,cache,new Version(0,0,0),"x64");
+ await updates.CheckAsync(true);Check(updates.State.Phase==UpdatePhase.Available,"Live GitHub release supplies verified download metadata");
+ await updates.DownloadAsync();Check(updates.State.Phase==UpdatePhase.Ready,"Actual GitHub installer downloads and verifies inside the update client");
+ string downloaded=Path.Combine(cache,Path.GetFileName(new Uri(updates.State.Release!.DownloadUrl).AbsolutePath));
+ Check(await UpdateDownload.VerifyAsync(downloaded,updates.State.Release,CancellationToken.None),"Downloaded GitHub installer passes a second checksum verification without being launched");
+ File.Delete(downloaded);Directory.Delete(cache);
+}
 Console.WriteLine($"{assertions} assertions passed.");

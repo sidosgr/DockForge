@@ -150,3 +150,17 @@ Date: 21 October 2026.
 - Visually inspected bar-xp-horizontal.png and settings-appearance-xp.png under src/DockForge/bin/Release/net10.0-windows/smoke-results. The README includes the actual rendered bar as docs/images/windows-xp-bar.png.
 
 Windows 10, ARM64 hardware and the full installer lifecycle still need execution testing. Trusted signing remains pending onboarding; the development installer is unsigned.
+
+## 0.1.7 inline updates and in-app installer downloads
+
+Date: 21 October 2026.
+
+- Replaced update-check message boxes and browser downloads with a persistent version-area panel under Backups & updates. Checking, availability, up-to-date results, progress, verification, cancellation and failures appear inline. Startup checks only update the shared status; they do not open a dialog.
+- Download update streams the official GitHub installer into the local Updates cache. It checks the asset's SHA-256 digest, expected size, a 512 MB limit and GitHub/CDN download hosts. Interrupted or rejected partial files are removed. A valid cached installer can be reused.
+- Windows Internet-zone metadata is retained for the downloaded executable. The integrity check is repeated immediately before the explicit Install update action. Missing metadata, truncated files, hash mismatches, changed cached files and unexpected redirects never become installable.
+- Install update validates and saves settings with any validation errors reported inline. It launches the verified local installer through the Windows shell, then exits DockForge and restores Windows taskbars. Declining/cancelling the launch leaves the app available for retry. Installer and operating-system prompts remain normal Windows UI.
+- 57 offline core assertions passed, covering the state machine, streamed progress, retry/cancellation, cache reuse, integrity gates, zone metadata and a simulated installer handoff. Three additional live checks downloaded the actual 0.1.6 GitHub installer, reached Ready and reverified the saved file without executing it (60 total assertions with --live-download).
+- 129 isolated Windows integration checks passed. The version card was exercised through checking, availability, partial download, cancellation, retry, Ready, reopening, simulated install handoff, up-to-date and network-error states. Standard-size update settings fit without scrolling. Existing bar, group, preview and recovery checks also passed. The app built with zero warnings and zero errors.
+- Visual evidence is under src/DockForge/bin/Release/net10.0-windows/smoke-results: settings-updates.png and update-checking/available/downloading/ready/error.png. Mock installer bytes are never executed; UI test downloads use a local temporary directory that supports Windows zone streams, rather than the synced source folder.
+
+The actual Windows setup/upgrade lifecycle over the active installation was not run. Windows 10 and ARM64 hardware also remain unverified. This development release remains unsigned while trusted signing onboarding is pending.

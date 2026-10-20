@@ -31,7 +31,7 @@ public partial class App : Application {
   Running=Windows.Enumerate();RebuildBars();pulse=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(250)};pulse.Tick+=(_,_)=>Tick();pulse.Start();SessionEnding+=(_,_)=>Quit();
   settingsWait=ThreadPool.RegisterWaitForSingleObject(settingsSignal,(_,_)=>Dispatcher.BeginInvoke(()=>ShowSettings()),null,Timeout.Infinite,false);SystemEvents.UserPreferenceChanged+=ThemeChanged; if(e.Args.Contains("--smoke-test")){Dispatcher.BeginInvoke(async()=>await SmokeTests.Run());return;} if(!Config.SetupComplete)new SetupWizard().Show();else if(e.Args.Contains("--settings"))ShowSettings();
   if(!Sandbox&&Config.SetupComplete)SetStartup();
-  if(!Sandbox&&Config.CheckUpdates)Dispatcher.BeginInvoke(async()=>await UpdateService.Check(false));
+  if(!Sandbox&&Config.CheckUpdates)Dispatcher.BeginInvoke(async()=>await UpdateService.Client.CheckAsync(Config.IncludePreviewUpdates));
  }
  nint Hook(nint h,int msg,nint w,nint l,ref bool handled){if((uint)msg==shellMessage&&(long)w==0x8006)Windows.Attention.Add(l);if((uint)msg==taskbarCreated)Dispatcher.BeginInvoke(RebuildBars);if(msg==0x312){var source=Bars.FirstOrDefault(b=>b.HotkeyId==(int)w);if(source!=null)foreach(var b in Bars.Where(b=>b.Model.Id==source.Model.Id))b.ToggleReveal();handled=true;}return 0;}
  void Tick(){if(stopping)return;ticks++;foreach(var bar in Bars.ToArray())bar.Pulse();if(ticks%4!=0)return;Running=Windows.Enumerate();foreach(var bar in Bars.ToArray())bar.RefreshItems();string sig=string.Join(";",Monitor.All().Select(m=>$"{m.Id}{m.Bounds}{m.Scale}"));if(sig!=monitorSignature){monitorSignature=sig;RebuildBars();}if(!Sandbox&&Config.HiddenTaskbarMonitors.Count>0)try{Recovery.Apply(Config.HiddenTaskbarMonitors);}catch(Exception e){Log.Write(e);}}
@@ -44,6 +44,6 @@ public partial class App : Application {
  public void RestoreTaskbars(){Config.HiddenTaskbarMonitors.Clear();Recovery.Restore();Save();}
  public void SetStartup(){try{using var key=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");if(Config.StartAtSignIn)key.SetValue("DockForge","\""+Environment.ProcessPath+"\"");else key.DeleteValue("DockForge",false);}catch(Exception e){Log.Write(e);}}
  public nint MessageHandle=>messages?.Handle??0;
- public void Quit(){if(stopping)return;stopping=true;pulse?.Stop();Recovery?.Restore();foreach(var b in Bars.ToArray())b.Close();tray?.Dispose();if(messages!=null){Native.DeregisterShellHookWindow(messages.Handle);messages.Dispose();}Shutdown();}
+ public void Quit(){if(stopping)return;stopping=true;UpdateService.Cancel();pulse?.Stop();Recovery?.Restore();foreach(var b in Bars.ToArray())b.Close();tray?.Dispose();if(messages!=null){Native.DeregisterShellHookWindow(messages.Handle);messages.Dispose();}Shutdown();}
  protected override void OnExit(ExitEventArgs e){settingsWait?.Unregister(null);settingsSignal?.Dispose();SystemEvents.UserPreferenceChanged-=ThemeChanged;Recovery?.Dispose();tray?.Dispose();singleton?.Dispose();base.OnExit(e);}
 }
