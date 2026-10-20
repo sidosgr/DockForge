@@ -2,16 +2,17 @@
 
 DockForge is a Windows desktop toolbar application inspired by Linkbar, implemented in a new C# / WPF codebase under the MIT license.
 
-**Current status: development build 0.1.5. This is not yet the fully verified release described in the product specification.** The implementation builds for x64 and ARM64. Local Windows 11 x64 checks are recorded in `docs/VERIFICATION.md`. Windows 10, ARM hardware, installer execution, and several shell interactions still need verification. Unsupported Explorer integrations are called out explicitly below.
+**Current status: development build 0.1.6. This is not yet the fully verified release described in the product specification.** The implementation builds for x64 and ARM64. Local Windows 11 x64 checks are recorded in `docs/VERIFICATION.md`. Windows 10, ARM hardware, installer execution, and several shell interactions still need verification. Unsupported Explorer integrations are called out explicitly below.
 
 ## Download and install
 
-Download **DockForge-Setup-0.1.5.exe** from the [0.1.5 development release](https://github.com/sidosgr/DockForge/releases/tag/v0.1.5). One installer includes both x64 and ARM64 and selects the native build automatically; a separate .NET installation is not required. The release also includes a SHA-256 checksum file.
+Download **DockForge-Setup-0.1.6.exe** from the [0.1.6 development release](https://github.com/sidosgr/DockForge/releases/tag/v0.1.6). One installer includes both x64 and ARM64 and selects the native build automatically; a separate .NET installation is not required. The release also includes a SHA-256 checksum file.
 
 Run the installer and follow the setup wizard. DockForge targets Windows 10 22H2 or later and Windows 11. This development installer is unsigned. Read the [verification record](docs/VERIFICATION.md) before relying on shell integration features.
 
 ## Features implemented
 
+- Windows XP Luna-style bars, with blue shading, Tahoma labels and beveled task buttons, alongside System, Windows 10 and Windows 11 styles.
 - Edge and floating bars, per-bar launcher/running-app/combined modes, independent or mirrored monitor placement.
 - Live custom groups and linked folders, grid/list popups, filters, sorting, and manual ordering.
 - Shell icons and installed-app selection, file/folder/web shortcuts, launch arguments, custom icons and labels.
@@ -22,6 +23,12 @@ Run the installer and follow the setup wizard. DockForge targets Windows 10 22H2
 - A single self-contained installer containing x64 and ARM64 builds, with per-user/all-user installation choices.
 
 See [the full agreed specification](docs/SPECIFICATION.md) for all requested behavior and [verification notes](docs/VERIFICATION.md) for the distinction between implemented, tested, and outstanding work.
+
+## Windows XP style
+
+Select a bar in Settings → Bars → Appearance, then choose **Windows XP** under **Windows style**. Each bar can use its own style. The blue Luna finish includes Tahoma labels, beveled task buttons and shading that follows horizontal or vertical placement. Custom background colors remain available, and Windows high-contrast colors take priority.
+
+![Windows XP style in DockForge](docs/images/windows-xp-bar.png)
 
 ## User guide
 
@@ -41,7 +48,7 @@ To build both self-contained applications without installers:
 ./build.ps1 -SkipInstallers
 ```
 
-Outputs: `artifacts/publish/win-x64`, `artifacts/publish/win-arm64`, and the combined `artifacts/installers/DockForge-Setup-0.1.5.exe`. The installer selects the native architecture automatically.
+Outputs: `artifacts/publish/win-x64`, `artifacts/publish/win-arm64`, and the combined `artifacts/installers/DockForge-Setup-0.1.6.exe`. The installer selects the native architecture automatically.
 
 ## Run and test
 
@@ -76,5 +83,7 @@ The GitHub workflow runs core checks, builds both self-contained applications, a
 Current releases remain unsigned while SignPath Foundation onboarding is pending. See the [code signing policy](docs/CODE-SIGNING.md), [privacy policy](docs/PRIVACY.md), and [application draft](docs/SIGNPATH-APPLICATION.md). The prepared signing workflow is disabled until approval and credentials are configured; it does not publish releases automatically.
 
 ## License and reference
+
+Created by **Sidos**.
 
 MIT. The original reference is [Linkbar](https://github.com/ATGH15102AFMLD/Linkbar). No Linkbar source was copied into this implementation. The anvil/dock icon is supplied as an editable SVG and Windows ICO.

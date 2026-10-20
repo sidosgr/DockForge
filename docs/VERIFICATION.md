@@ -137,3 +137,16 @@ Date: 18 October 2026. The public repository is now https://github.com/sidosgr/D
 - The prepared signing workflow covers the six owned application binaries and the outer installer. Generated-uninstaller signing requires a separate integration; see docs/CODE-SIGNING.md. It must not be described as fully signed installation lifecycle coverage.
 
 Windows 10, ARM64 hardware and the full installation/upgrade/uninstallation matrix remain unverified. The 0.1.5 installer is still an unsigned development build.
+
+## 0.1.6 Windows XP bars and creator credit
+
+Date: 21 October 2026.
+
+- Added the per-bar Windows XP option with a blue Luna-style gradient, Tahoma labels, beveled running-app buttons and distinct hover, active, pressed and keyboard-focus states. Horizontal, vertical and floating bars share the appearance implementation with the live Settings preview and animation snapshots.
+- XP shading follows the bar's thickness. Default corners are square and composition blur is disabled for XP; explicit background colors, corner radius and opacity remain configurable. High contrast bypasses decorative XP colors, although a real high-contrast Windows session has not been exercised.
+- Added a small “Created by Sidos” line in Help, the offline guide footer, and the README attribution. Bars have no creator watermark.
+- 38 core assertions passed, including persistence of the XP selection and compatibility of existing style identifiers. The application built with zero warnings and zero errors.
+- 119 isolated Windows integration checks passed, including XP horizontal/vertical/floating shading, Tahoma/foreground/chrome, hover and active states, custom colors, switching back to System, live Settings selection and auto-hide/reveal palette restoration. Existing placement, drag, group, preview and recovery checks also passed.
+- Visually inspected bar-xp-horizontal.png and settings-appearance-xp.png under src/DockForge/bin/Release/net10.0-windows/smoke-results. The README includes the actual rendered bar as docs/images/windows-xp-bar.png.
+
+Windows 10, ARM64 hardware and the full installer lifecycle still need execution testing. Trusted signing remains pending onboarding; the development installer is unsigned.

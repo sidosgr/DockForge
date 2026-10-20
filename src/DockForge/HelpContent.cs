@@ -16,6 +16,7 @@ public static class HelpContent {
   Card("05 / SWITCH","Work with running apps","Click an app to switch to it. Hover to inspect its windows; move away from the icon to dismiss. Right-click for window actions. Middle-click closes by default; configure it per bar.");
   Card("06 / RECOVER","Stay in control","Apply saves changes; Cancel reverts unsaved edits. Use Backups & updates to export your setup. Restore Windows taskbars is available in Settings, the bar menu and the notification-area menu.");
   body.Children.Add(cards);body.Children.Add(Ui.Text("Auto-hide tip: move to the bar’s own screen edge to reveal it. The activation guide is visible only while Settings is open. Press Escape to close a group.",13));
+  var credit=Ui.Text("Created by Sidos",12);credit.Opacity=.65;credit.Margin=new Thickness(0,20,0,0);body.Children.Add(credit);
   return new ScrollViewer{Content=body,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Padding=new Thickness(16)};
  }
  public static void OpenGuide(){string path=Path.Combine(AppContext.BaseDirectory,"Help.html");try{if(!File.Exists(path))throw new FileNotFoundException("The complete guide is missing. Reinstall DockForge to restore it.");Process.Start(new ProcessStartInfo(path){UseShellExecute=true});}catch(Exception e){MessageBox.Show(e.Message,"Could not open the guide");}}

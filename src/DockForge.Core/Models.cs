@@ -7,7 +7,7 @@ public enum Edge { Left, Top, Right, Bottom, Floating }
 public enum VisibilityMode { ReserveSpace, Overlay, AutoHide }
 public enum LengthMode { Full, FitContents, Custom }
 public enum Alignment { Start, Center, End }
-public enum BarStyle { System, Windows10, Windows11 }
+public enum BarStyle { System, Windows10, Windows11, WindowsXP }
 public enum ThemeMode { System, Light, Dark }
 public enum LabelMode { IconsOnly, AllItems, RunningWindows }
 public enum ItemKind { Shortcut, Website, Group, LinkedFolder, Separator, Spacer }
