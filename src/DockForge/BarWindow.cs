@@ -16,7 +16,7 @@ public sealed class BarWindow : Window {
   var handle=Ui.Action("⠿",()=>{});handle.ToolTip="Drag to move or dock";handle.Padding=new Thickness(1);handle.Margin=new Thickness(0);handle.MinWidth=16;handle.MinHeight=16;handle.Background=Brushes.Transparent;handle.BorderThickness=new Thickness(0);handle.PreviewMouseLeftButtonDown+=StartMove;DockPanel.SetDock(handle,bar.IsVertical?Dock.Top:Dock.Left);PlaceChrome(handle,0);root.Children.Add(handle);
   previous=Ui.Action(bar.IsVertical?"⌃":"‹",()=>MoveScroll(-1));previous.Padding=new Thickness(1);previous.MinWidth=16;previous.MinHeight=16;previous.Margin=new Thickness(0);previous.Background=Brushes.Transparent;previous.BorderThickness=new Thickness(0);DockPanel.SetDock(previous,bar.IsVertical?Dock.Top:Dock.Left);PlaceChrome(previous,1);root.Children.Add(previous);
   next=Ui.Action(bar.IsVertical?"⌄":"›",()=>MoveScroll(1));next.Padding=new Thickness(1);next.MinWidth=16;next.MinHeight=16;next.Margin=new Thickness(0);next.Background=Brushes.Transparent;next.BorderThickness=new Thickness(0);DockPanel.SetDock(next,bar.IsVertical?Dock.Bottom:Dock.Right);PlaceChrome(next,2);root.Children.Add(next);root.Children.Insert(0,scroll);Panel.SetZIndex(dropCue,10);root.Children.Add(dropCue);
-  PreviewMouseWheel+=(_,e)=>{MoveScroll(e.Delta>0?-1:1);e.Handled=true;};MouseEnter+=(_,_)=>lastInside=DateTime.UtcNow;AllowDrop=true;Drop+=BarDrop;DragOver+=(_,e)=>{if(e.Data.GetDataPresent("DockForge.Item")){ShowDropCue(e);e.Effects=Model.Locked?DragDropEffects.None:DragDropEffects.Move;e.Handled=true;}};DragLeave+=(_,e)=>{var p=e.GetPosition(this);if(p.X<0||p.X>ActualWidth||p.Y<0||p.Y>ActualHeight)ClearDropCue();};
+  PreviewMouseWheel+=(_,e)=>{MoveScroll(e.Delta>0?-1:1);e.Handled=true;};MouseEnter+=(_,_)=>lastInside=DateTime.UtcNow;AllowDrop=true;Drop+=BarDrop;DragOver+=(_,e)=>{if(e.Data.GetDataPresent("DockForge.Item")){ShowDropCue(e);e.Effects=Model.Locked?DragDropEffects.None:DragDropEffects.Move;e.Handled=true;}else HandleBarFileDrop(e);};DragLeave+=(_,e)=>{var p=e.GetPosition(this);if(p.X<0||p.X>ActualWidth||p.Y<0||p.Y>ActualHeight)ClearDropCue();};
   ContextMenu=BarMenu();ContextMenu.Opened+=(_,_)=>interactions++;ContextMenu.Closed+=(_,_)=>interactions=Math.Max(0,interactions-1);
   SourceInitialized+=(_,_)=>{hwnd=new WindowInteropHelper(this).Handle;if(!App.Host.UiTest)Native.SetWindowLongPtr(hwnd,-20,(nint)((long)Native.GetWindowLongPtr(hwnd,-20)|0x80));var source=HwndSource.FromHwnd(hwnd);source.AddHook(Hook);appbarMessage=Native.RegisterWindowMessage("DockForge.Appbar."+hwnd);ApplyAppearance();RefreshItems(true);RegisterHotkey();};
   Closed+=(_,_)=>{CancelAnimation();ownedPopup?.Close();snapPreview?.Close();if(registered)Native.SHAppBarMessage(1,ref appbar);Native.UnregisterHotKey(App.Host.MessageHandle,HotkeyId);};Ui.ArrowNavigation(strip);
@@ -26,8 +26,28 @@ public sealed class BarWindow : Window {
  void ApplySurfaceAppearance(){Ui.Theme(this,Model);Foreground=BarAppearance.Foreground(Model);FontFamily=new FontFamily(BarAppearance.IsXp(Model)?"Tahoma":"Segoe UI");if(BarAppearance.IsXp(Model))Background=Ui.Brush("#245EDB",Brushes.RoyalBlue);BarAppearance.Paint(surface,Model);surface.Padding=new Thickness(3);foreach(var control in root.Children.OfType<Control>()){control.Foreground=Foreground;if(control is Button button)BarAppearance.PaintButton(button,Model);}if(hwnd!=0)Native.Effects(hwnd,!BarAppearance.IsXp(Model)&&Ui.Dark(Model),BarAppearance.Blur(Model),BarAppearance.Modern(Model)?2:1);}
  public void ApplyAppearance(){ApplySurfaceAppearance();Opacity=SystemParameters.HighContrast?1:Math.Clamp(Model.Opacity,.2,1);strip.Orientation=Model.IsVertical?Orientation.Vertical:Orientation.Horizontal;strip.VerticalAlignment=Model.IsVertical?Model.Alignment switch{Alignment.Start=>VerticalAlignment.Top,Alignment.End=>VerticalAlignment.Bottom,_=>VerticalAlignment.Center}:VerticalAlignment.Center;strip.HorizontalAlignment=!Model.IsVertical?Model.Alignment switch{Alignment.Start=>HorizontalAlignment.Left,Alignment.End=>HorizontalAlignment.Right,_=>HorizontalAlignment.Center}:HorizontalAlignment.Center;UpdateOverflow();signature="";RefreshItems(true);if(hidden&&!IsAnimating)UpdateHiddenPresentation();}
  public void RefreshItems(bool force=false){if(hwnd==0||dragging||!force&&(Busy||Mouse.LeftButton==MouseButtonState.Pressed))return;
-  var windows=App.Host.Running.Where(w=>!Model.CurrentMonitorOnly||w.Monitor==Monitor.Id).Where(w=>{var filters=Model.AppFilterList.Split(';',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries);bool match=filters.Any(s=>w.Path.Contains(s,StringComparison.OrdinalIgnoreCase)||w.AppId.Contains(s,StringComparison.OrdinalIgnoreCase));return Model.AppFilter==AppFilter.All||(Model.AppFilter==AppFilter.Include?match:!match);}).ToList();
-  displayed=[];var consumed=new HashSet<nint>();if(Model.Mode!=BarMode.RunningApps)foreach(var item in Model.Items){var matching=Model.Mode==BarMode.Launcher||item.IsGroup?[]:windows.Where(w=>(w.Key.Equals(ShellService.Identity(item),StringComparison.OrdinalIgnoreCase)||w.Path.Equals(ShellService.Identity(item),StringComparison.OrdinalIgnoreCase))).ToList();foreach(var w in matching)consumed.Add(w.Handle);if(!Model.CombineWindows&&matching.Count>1){foreach(var w in matching)displayed.Add((item,[w]));}else displayed.Add((item,matching));}
+  List<AppWindow> windows = [];
+  if (Model.Mode != BarMode.Launcher)
+  {
+   var candidates = App.Host.Running.Where(w => !Model.CurrentMonitorOnly || w.Monitor == Monitor.Id);
+   if (Model.AppFilter != AppFilter.All)
+   {
+    var filters = Model.AppFilterList.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+    candidates = candidates.Where(w => filters.Any(s => w.Path.Contains(s, StringComparison.OrdinalIgnoreCase)
+        || w.AppId.Contains(s, StringComparison.OrdinalIgnoreCase)) == (Model.AppFilter == AppFilter.Include));
+   }
+   windows = candidates.ToList();
+  }
+  displayed=[];var consumed=new HashSet<nint>();if(Model.Mode!=BarMode.RunningApps)foreach(var item in Model.Items){
+   List<AppWindow> matching = [];
+   if (windows.Count > 0 && item.Kind == ItemKind.Shortcut)
+   {
+    string identity = ShellService.Identity(item);
+    if (identity.Length > 0)
+     matching = windows.Where(w => w.Key.Equals(identity, StringComparison.OrdinalIgnoreCase)
+         || w.Path.Equals(identity, StringComparison.OrdinalIgnoreCase)).ToList();
+   }
+   foreach(var w in matching)consumed.Add(w.Handle);if(!Model.CombineWindows&&matching.Count>1){foreach(var w in matching)displayed.Add((item,[w]));}else displayed.Add((item,matching));}
   if(Model.Mode!=BarMode.Launcher){var rest=windows.Where(w=>!consumed.Contains(w.Handle));var groups=Model.CombineWindows?rest.GroupBy(w=>w.Key):rest.GroupBy(w=>w.Handle.ToString());foreach(var group in groups.OrderBy(g=>{int n=Model.RunningOrder.IndexOf(g.First().Key);return n<0?int.MaxValue:n;})){var first=group.First();displayed.Add((new Item{Name=Model.CombineWindows?Path.GetFileNameWithoutExtension(first.Path):first.Title,Target=first.Path,AppId=first.AppId},group.ToList()));}}
   string key=string.Join('|',displayed.Select(x=>x.item.Name+"/"+x.item.Target+"/"+x.item.Kind+"/"+ShellService.Exists(x.item)+":"+string.Join(',',x.windows.Select(w=>w.Handle+"/"+w.Title+"/"+w.Active+"/"+App.Host.Windows.Attention.Contains(w.Handle)))));
   if(!force&&key==signature)return;signature=key;strip.Children.Clear();foreach(var entry in displayed)strip.Children.Add(ItemButton(entry.item,entry.windows));if(displayed.Count==0)strip.Children.Add(Ui.Text(Model.Mode==BarMode.RunningApps?"No running apps":"Right-click to add items",12));Position();
@@ -41,13 +61,59 @@ public sealed class BarWindow : Window {
   b.PreviewMouseDown+=(_,e)=>{if(e.ChangedButton!=MouseButton.Middle)return;e.Handled=true;if(Model.MiddleClick==MiddleAction.NewInstance)ShellService.Launch(item);else if(Model.MiddleClick==MiddleAction.Close){if(windows.Count==1)WindowsService.Close(windows[0].Handle);else if(windows.Count>1)OpenPicker(windows,b,true);}};
   DispatcherTimer hover=new(){Interval=TimeSpan.FromMilliseconds(item.IsGroup?Math.Clamp(item.HoverDelay,100,5000):550)};hover.Tick+=(_,_)=>{hover.Stop();if(!b.IsMouseOver||dragging)return;if(item.IsGroup&&item.OpenOnHover)OpenGroup(item,b);else if(windows.Count>0)OpenPicker(windows,b,false);};b.MouseEnter+=(_,_)=>{BarAppearance.PaintButton(b,Model,windows.Count>0,windows.Any(w=>w.Active),true);hover.Start();};b.MouseLeave+=(_,_)=>{hover.Stop();DismissHoverPreview();BarAppearance.PaintButton(b,Model,windows.Count>0,windows.Any(w=>w.Active));};b.Unloaded+=(_,_)=>hover.Stop();
   Point start=default;bool dragArmed=false;b.PreviewMouseLeftButtonDown+=(_,e)=>{start=e.GetPosition(b);dragArmed=true;};b.PreviewMouseLeftButtonUp+=(_,_)=>dragArmed=false;b.LostMouseCapture+=(_,_)=>dragArmed=false;b.PreviewMouseMove+=(_,e)=>{if(Model.Locked||!dragArmed||e.LeftButton!=MouseButtonState.Pressed)return;var p=e.GetPosition(b);if(Math.Abs(p.X-start.X)+Math.Abs(p.Y-start.Y)<8)return;dragArmed=false;interactions++;try{var data=new DataObject();data.SetData("DockForge.Item",item);data.SetData("DockForge.Bar",Model.Id);if(windows.Count>0)data.SetData("DockForge.Running",windows[0].Key);DragDrop.DoDragDrop(b,data,DragDropEffects.Move|DragDropEffects.Copy);}finally{interactions--;foreach(var bar in App.Host.Bars)bar.ClearDropCue();}};
-  DateTime dragEnter=DateTime.MaxValue;b.AllowDrop=true;b.DragEnter+=(_,_)=>dragEnter=DateTime.UtcNow;b.DragOver+=(_,e)=>{if(e.Data.GetDataPresent(DataFormats.FileDrop)&&windows.Count>0&&DateTime.UtcNow-dragEnter>TimeSpan.FromMilliseconds(700)){WindowsService.Activate(windows[0].Handle);dragEnter=DateTime.MaxValue;}if(e.Data.GetDataPresent("DockForge.Item")){ShowDropCue(e);e.Effects=Model.Locked?DragDropEffects.None:DragDropEffects.Move;}else e.Effects=DragDropEffects.Copy;e.Handled=true;};
-  b.Drop+=(_,e)=>{if(e.Data.GetDataPresent("DockForge.Item")){if(Model.Locked)return;var moved=(Item)e.Data.GetData("DockForge.Item");DropInternalItem(e,moved);e.Handled=true;}else if(e.Data.GetData(DataFormats.FileDrop) is string[] files){if(item.Kind==ItemKind.Group&&!Model.Locked){item.Children.AddRange(files.Select(Item.FromPath));App.Host.Save();}else if(!item.IsGroup)ShellService.Launch(item,files);e.Handled=true;}};return b;
+  DateTime dragEnter=DateTime.MaxValue;b.AllowDrop=true;b.DragEnter+=(_,_)=>dragEnter=DateTime.UtcNow;b.DragOver+=(_,e)=>{if(e.Data.GetDataPresent(DataFormats.FileDrop)&&windows.Count>0&&DateTime.UtcNow-dragEnter>TimeSpan.FromMilliseconds(700)){WindowsService.Activate(windows[0].Handle);dragEnter=DateTime.MaxValue;}if(e.Data.GetDataPresent("DockForge.Item")){ShowDropCue(e);e.Effects=Model.Locked?DragDropEffects.None:DragDropEffects.Move;}else if(item.IsGroup){HandleGroupFileDrop(e);return;}else e.Effects=ShortcutDrop.ReferenceEffect(e.AllowedEffects);e.Handled=true;};
+  void HandleGroupFileDrop(DragEventArgs e) => ShortcutDrop.Handle(e, item.Children,
+      item.Kind == ItemKind.Group && !Model.Locked, () => { App.Host.Save(); RefreshItems(true); });
+  b.Drop += (_, e) =>
+  {
+   if (e.Data.GetData("DockForge.Item") is Item moved)
+   {
+    if (!Model.Locked) DropInternalItem(e, moved);
+    e.Handled = true;
+   }
+   else if (item.IsGroup) HandleGroupFileDrop(e);
+   else if (e.Data.GetData(DataFormats.FileDrop) is string[] files)
+   {
+    e.Effects = ShortcutDrop.ReferenceEffect(e.AllowedEffects);
+    if (e.Effects != DragDropEffects.None) ShellService.Launch(item, files);
+    e.Handled = true;
+   }
+  };
+  return b;
  }
  public static Item CloneItem(Item item){var clone=System.Text.Json.JsonSerializer.Deserialize<Item>(System.Text.Json.JsonSerializer.Serialize(item,Settings.Json),Settings.Json)!;clone.Id=Guid.NewGuid();return clone;}
- void Reorder(DragEventArgs e,Item? before){if(Model.Locked)return;if(e.Data.GetData("DockForge.Running") is string key&&!Model.Items.Any(i=>i.Id==((Item)e.Data.GetData("DockForge.Item")).Id)){Model.RunningOrder.Remove(key);int idx=before==null?-1:Model.RunningOrder.IndexOf(ShellService.Identity(before));if(idx<0)Model.RunningOrder.Add(key);else Model.RunningOrder.Insert(idx,key);}
-  else if(e.Data.GetData("DockForge.Item") is Item item){if(before?.Id==item.Id)return;var source=App.Host.Config.Bars.Find(b=>b.Id.Equals(e.Data.GetData("DockForge.Bar")));if(source?.Locked==true)return;source?.Items.Remove(item);int idx=before==null?-1:Model.Items.IndexOf(before);if(idx<0)Model.Items.Add(item);else Model.Items.Insert(idx,item);}App.Host.Save();foreach(var b in App.Host.Bars)b.RefreshItems(true);}
- void BarDrop(object sender,DragEventArgs e){if(Model.Locked)return;if(e.Data.GetData("DockForge.Item") is Item moved)DropInternalItem(e,moved);else if(e.Data.GetData(DataFormats.FileDrop) is string[] paths){Model.Items.AddRange(paths.Select(Item.FromPath));App.Host.Save();RefreshItems(true);}e.Handled=true;}
+ void Reorder(DragEventArgs e, Item? before)
+ {
+  if (Model.Locked || e.Data.GetData("DockForge.Item") is not Item item || before?.Id == item.Id) return;
+  var source = App.Host.Config.Bars.Find(b => b.Id.Equals(e.Data.GetData("DockForge.Bar")));
+  if (source?.Locked == true) return;
+  bool pinned = source?.Items.Contains(item) == true;
+  if (!pinned && Model.Mode != BarMode.Launcher && e.Data.GetData("DockForge.Running") is string key)
+  {
+   Model.RunningOrder.Remove(key);
+   int index = before == null ? -1 : Model.RunningOrder.IndexOf(ShellService.Identity(before));
+   if (index < 0) Model.RunningOrder.Add(key); else Model.RunningOrder.Insert(index, key);
+  }
+  else
+  {
+   if (pinned) source!.Items.Remove(item);
+   int index = before == null ? -1 : Model.Items.IndexOf(before);
+   Model.Items.Insert(index < 0 ? Model.Items.Count : index, pinned ? item : CloneItem(item));
+  }
+  App.Host.Save();
+  foreach (var bar in App.Host.Bars) bar.RefreshItems(true);
+ }
+ void HandleBarFileDrop(DragEventArgs e) => ShortcutDrop.Handle(e, Model.Items, !Model.Locked,
+     () => { App.Host.Save(); RefreshItems(true); });
+ void BarDrop(object sender, DragEventArgs e)
+ {
+  if (e.Data.GetData("DockForge.Item") is Item moved)
+  {
+   if (!Model.Locked) DropInternalItem(e, moved);
+   e.Handled = true;
+  }
+  else HandleBarFileDrop(e);
+ }
  ContextMenu ItemMenu(Item item,List<AppWindow> windows){var m=new ContextMenu();foreach(var w in windows)Ui.Menu(m,"Switch to "+w.Title,()=>WindowsService.Activate(w.Handle));if(!item.IsGroup)Ui.Menu(m,"Open new instance",()=>ShellService.Launch(item));if(windows.Count==1)Ui.Menu(m,"Close window",()=>WindowsService.Close(windows[0].Handle));if(windows.Count>1)Ui.Menu(m,"Close all windows…",()=>CloseAll(windows));
   foreach(var recent in ShellMenus.Recent(windows.FirstOrDefault()?.AppId??item.AppId))Ui.Menu(m,"Recent · "+recent.Name,()=>ShellService.Launch(recent));
   if(File.Exists(item.Target)||Directory.Exists(item.Target)){Ui.Menu(m,"Windows context menu…",()=>ShellMenus.Show(this,item.Target));Ui.Menu(m,"Open file location",()=>{string? dir=Directory.Exists(item.Target)?item.Target:Path.GetDirectoryName(item.Target);if(dir!=null)ShellService.Launch(new(){Target=dir});});}
@@ -68,7 +134,7 @@ public sealed class BarWindow : Window {
  readonly record struct DropLocation(Item? Before,Item? Group,FrameworkElement? Anchor,bool AtEnd);
  DropLocation LocateDrop(IDataObject data,Point point){
   var moved=(Item)data.GetData("DockForge.Item");var source=App.Host.Config.Bars.Find(x=>x.Id.Equals(data.GetData("DockForge.Bar")));bool pinned=source?.Items.Any(x=>x.Id==moved.Id)==true;
-  var children=strip.Children.OfType<FrameworkElement>().Where(x=>x.Tag is Item i&&(pinned?Model.Items.Contains(i):!Model.Items.Contains(i))).ToList();
+  var children=strip.Children.OfType<FrameworkElement>().Where(x=>x.Tag is Item i&&((pinned||Model.Mode==BarMode.Launcher)?Model.Items.Contains(i):!Model.Items.Contains(i))).ToList();
   double coordinate=Model.IsVertical?point.Y:point.X;
   foreach(var child in strip.Children.OfType<FrameworkElement>()){if(child.Tag is not Item{Kind:ItemKind.Group} group||moved.IsGroup)continue;var pos=child.TranslatePoint(new Point(),strip);double start=Model.IsVertical?pos.Y:pos.X;double length=Model.IsVertical?child.ActualHeight:child.ActualWidth;if(coordinate>start+length*.3&&coordinate<start+length*.7)return new(null,group,child,false);}
   var slots=children.Select(x=>{var p=x.TranslatePoint(new Point(),strip);return (Model.IsVertical?p.Y:p.X,Model.IsVertical?x.ActualHeight:x.ActualWidth);}).ToList();int index=Layout.InsertionIndex(coordinate,slots);

@@ -5,9 +5,10 @@ namespace DockForge;
 internal static class SmokeTests {
  static IEnumerable<T> Find<T>(DependencyObject root) where T:DependencyObject {for(int i=0;i<System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);i++){var child=System.Windows.Media.VisualTreeHelper.GetChild(root,i);if(child is T match)yield return match;foreach(var descendant in Find<T>(child))yield return descendant;}}
  public static async Task Run(){string output=Path.Combine(AppContext.BaseDirectory,"smoke-results");Directory.CreateDirectory(output);var lines=new List<string>();void Check(bool ok,string name){lines.Add((ok?"PASS ":"FAIL ")+name);if(!ok)throw new Exception(name);}
+  string testFolder=Path.Combine(output,"folder-fixture-"+Guid.NewGuid().ToString("N"));
   try{
    var app=App.Host;Check(app.Sandbox,"Smoke test isolated from Windows taskbar and startup settings");var monitors=Monitor.All();Check(monitors.Count>0,"Monitor enumeration");
-   string testFolder=Path.Combine(output,"folder-fixture-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(testFolder);File.WriteAllText(Path.Combine(testFolder,"alpha.txt"),"DockForge test");File.WriteAllText(Path.Combine(testFolder,"beta.url"),"[InternetShortcut]\nURL=https://example.com\n");Directory.CreateDirectory(Path.Combine(testFolder,"Subfolder"));
+   Directory.CreateDirectory(testFolder);File.WriteAllText(Path.Combine(testFolder,"alpha.txt"),"DockForge test");File.WriteAllText(Path.Combine(testFolder,"beta.url"),"[InternetShortcut]\nURL=https://example.com\n");Directory.CreateDirectory(Path.Combine(testFolder,"Subfolder"));
    var group=new Item{Name="Projects",Kind=ItemKind.LinkedFolder,Target=testFolder};Check(ShellService.GroupItems(group).Count==3,"Linked group includes immediate files and subfolder");group.Filter=FolderFilter.Shortcuts;Check(ShellService.GroupItems(group).Single().Name=="beta","Shortcut filter");group.Filter=FolderFilter.Extensions;group.Extensions=".txt";Check(ShellService.GroupItems(group).Single().Name=="alpha","Extension filter");group.Filter=FolderFilter.Everything;group.Sort=GroupSort.Manual;group.ManualOrder=[Path.Combine(testFolder,"beta.url")];Check(ShellService.GroupItems(group)[0].Name=="beta","Manual linked-folder order");
    var b=new Bar{Name="DockForge preview",Mode=BarMode.Launcher,Monitors=monitors.Select(m=>m.Id).ToList(),Edge=Edge.Top,Items=[new(){Name="File Explorer",Target=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),"explorer.exe")},new(){Name="Work",Kind=ItemKind.Group,Children=[new(){Name="Files",Target=testFolder},new(){Name="Website",Kind=ItemKind.Website,Target="https://example.com"}]},group,new(){Kind=ItemKind.Separator},new(){Name="Website",Kind=ItemKind.Website,Target="https://example.com"}]};app.Config=new(){SetupComplete=true,StartAtSignIn=false,Bars=[b]};app.RebuildBars();await Task.Delay(400);Check(app.Bars.Count==monitors.Count,"Mirrored bars created on connected monitors");foreach(var w in app.Bars){Native.GetWindowRect(new WindowInteropHelper(w).Handle,out var r);Check(r.Width>150&&r.Height>=32&&r.Top==(int)w.Monitor.Bounds.Y,"Native top-edge placement on "+w.Monitor.Id);}Render(app.Bars[0],Path.Combine(output,"bar.png"));
    if(!SystemParameters.HighContrast){
@@ -35,6 +36,7 @@ internal static class SmokeTests {
    var cueBar=app.Bars[0];var cueTarget=Find<Button>(cueBar).Last(x=>x.Tag is Item);var dragData=new DataObject();dragData.SetData("DockForge.Item",b.Items[0]);dragData.SetData("DockForge.Bar",b.Id);var dragPoint=cueTarget.TranslatePoint(new Point(cueTarget.ActualWidth*.9,cueTarget.ActualHeight/2),cueBar);cueBar.ShowInsertionPreview(dragData,dragPoint);Check(cueBar.DropIndicator.Visibility==Visibility.Visible&&cueBar.DropIndicator.Width==3,"Horizontal drag shows an insertion marker");Render(cueBar,Path.Combine(output,"bar-drop-cue.png"));cueBar.Model.Locked=true;cueBar.ShowInsertionPreview(dragData,dragPoint);Check(cueBar.DropIndicator.Visibility==Visibility.Collapsed,"Locked bars suppress insertion markers");cueBar.Model.Locked=false;
    string linkPath=Path.Combine(testFolder,"Explorer.lnk");dynamic script=Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;dynamic link=script.CreateShortcut(linkPath);link.TargetPath=b.Items[0].Target;link.Save();System.Runtime.InteropServices.Marshal.FinalReleaseComObject(link);System.Runtime.InteropServices.Marshal.FinalReleaseComObject(script);Check(ReferenceEquals(ShellService.Icon(new Item{Target=linkPath},true),ShellService.Icon(b.Items[0])),"Shortcut badge hiding uses the unbadged target icon");
    Check(ShellService.Icon(new Item{Target=Path.Combine(testFolder,"beta.url")},true)==null,"Internet shortcut badge hiding uses a clean website glyph");
+   await CheckDroppedShortcuts(testFolder, Check);
    var installed=ShellService.InstalledApps();Check(installed.Count>0,"Installed desktop and Store app enumeration");Check(ShellService.Icon(b.Items[0])!=null,"Windows shell icon extraction");
    var settings=new SettingsWindow(false,b);settings.Show();await Task.Delay(250);Check(settings.IsLoaded,"Central settings opens");Render(settings,Path.Combine(output,"settings.png"));
    var innerTabs=Find<TabControl>(settings).First(t=>t.Items.OfType<TabItem>().Any(i=>Equals(i.Header,"Appearance")));
@@ -55,7 +57,56 @@ internal static class SmokeTests {
    string journal=Path.Combine(output,"guard-fixture.json");File.WriteAllText(journal,"[]");string readyName="Local\\DockForge.SmokeGuard."+Guid.NewGuid();using(var ready=new EventWaitHandle(false,EventResetMode.ManualReset,readyName)){using var parent=Process.Start(new ProcessStartInfo(Environment.ProcessPath!){UseShellExecute=false,CreateNoWindow=true,ArgumentList={"--guard-fixture"}})!;using var guard=Process.Start(new ProcessStartInfo(Environment.ProcessPath!){UseShellExecute=false,CreateNoWindow=true,ArgumentList={"--guard",parent.Id.ToString(),parent.StartTime.ToUniversalTime().Ticks.ToString(),journal,readyName}})!;Check(await Task.Run(()=>ready.WaitOne(5000)),"Recovery helper signals readiness");await parent.WaitForExitAsync();await guard.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(8));Check(guard.ExitCode==0&&File.ReadAllText(journal)=="[]","Recovery helper exits after monitored parent ends");}
    var before=app.Config.Clone();app.Config.Bars[0].Name="Temporary edit";app.Config=before;Check(app.Config.Bars[0].Name=="DockForge preview","Settings snapshot restores bar state");
    lines.Add("INFO Windows taskbar hiding, native menu commands and app-closing actions intentionally not invoked on user windows in this isolated test.");
-  }catch(Exception e){lines.Add("FAIL "+e);Log.Write(e);}finally{File.WriteAllLines(Path.Combine(output,"results.txt"),lines);App.Host.Quit();}
+  }catch(Exception e){lines.Add("FAIL "+e);Log.Write(e);}finally{
+   try { if (Directory.Exists(testFolder)) Directory.Delete(testFolder,true); }
+   catch (IOException e) { lines.Add("WARN Could not clean up the folder fixture: "+e.Message); }
+   File.WriteAllLines(Path.Combine(output,"results.txt"),lines);App.Host.Quit();
+  }
+ }
+ static async Task CheckDroppedShortcuts(string folder, Action<bool,string> check)
+ {
+  string executable = Path.Combine(Environment.SystemDirectory, "cmd.exe");
+  string path = Path.Combine(folder, "Shortcut with spaces.LNK");
+  string icon = Path.Combine(Environment.SystemDirectory, "shell32.dll");
+  const string arguments = "/d /c \"echo launched>pin-result.txt\"";
+  dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+  try
+  {
+   dynamic link = shell.CreateShortcut(path);
+   try
+   {
+    link.TargetPath = executable;
+    link.Arguments = arguments;
+    link.WorkingDirectory = folder;
+    link.IconLocation = icon + ",3";
+    link.WindowStyle = 7;
+    link.Save();
+   }
+   finally { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(link); }
+  }
+  finally { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell); }
+
+  var pin = ShellService.FromDroppedPath(path);
+  check(pin.Target.Equals(executable,StringComparison.OrdinalIgnoreCase) && pin.Name=="Shortcut with spaces",
+      "A dropped app shortcut stores its executable and display name");
+  check(pin.Icon.Equals(icon,StringComparison.OrdinalIgnoreCase) && pin.IconIndex==3 && ShellService.Icon(pin)!=null,
+      "An imported shortcut keeps its custom icon resource");
+  var store = new SettingsStore(Path.Combine(folder,"profile"));
+  store.Save(new Settings { Bars = [new Bar { Monitors = ["test-monitor"], Items = [pin] }] });
+  File.Delete(path);
+  var saved = store.Load().Bars.Single().Items.Single();
+  check(saved.Arguments==arguments && saved.WorkingDirectory.Equals(folder,StringComparison.OrdinalIgnoreCase)
+      && saved.WindowStyle==ProcessWindowStyle.Minimized && ShellService.Exists(saved),
+      "Launch options survive a settings reload and removal of the source shortcut");
+  ShellService.Launch(saved);
+  string result = Path.Combine(folder,"pin-result.txt");
+  for (int i=0; i<100 && !File.Exists(result); i++) await Task.Delay(50);
+  check(File.Exists(result) && File.ReadAllText(result).Trim()=="launched",
+      "The saved pin launches in its working directory after the source shortcut is deleted");
+  File.WriteAllText(path,"invalid shortcut");
+  check(ShellService.FromDroppedPath(path).Target==path, "An unreadable shortcut keeps its original target");
+  foreach (string original in new[] { executable, folder, Path.Combine(folder,"alpha.txt"), Path.Combine(folder,"beta.url") })
+   check(ShellService.FromDroppedPath(original).Target==original, "Direct drops keep their path: "+Path.GetFileName(original));
  }
  static void Render(Window window,string path){window.UpdateLayout();var visual=window.Content as FrameworkElement;if(visual==null||visual.ActualWidth<1||visual.ActualHeight<1)return;if(visual is Panel panel)panel.Background=window.Background;var bmp=new RenderTargetBitmap((int)Math.Ceiling(visual.ActualWidth),(int)Math.Ceiling(visual.ActualHeight),96,96,PixelFormats.Pbgra32);bmp.Render(visual);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bmp));using var stream=File.Create(path);encoder.Save(stream);}
 }

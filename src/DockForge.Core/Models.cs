@@ -85,7 +85,13 @@ public sealed class Item {
  public string AppId { get; set; } = "";
  public string Arguments { get; set; } = "";
  public string WorkingDirectory { get; set; } = "";
+ [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+ public System.Diagnostics.ProcessWindowStyle WindowStyle { get; set; }
+ [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+ public bool RunAsAdministrator { get; set; }
  public string Icon { get; set; } = "";
+ [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+ public int? IconIndex { get; set; }
  public double SpacerSize { get; set; } = 24;
  public List<Item> Children { get; set; } = [];
  public GroupLayout Layout { get; set; }

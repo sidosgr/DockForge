@@ -16,6 +16,7 @@ Run the installer and follow the setup wizard. DockForge targets Windows 10 22H2
 - Edge and floating bars, per-bar launcher/running-app/combined modes, independent or mirrored monitor placement.
 - Live custom groups and linked folders, grid/list popups, filters, sorting, and manual ordering.
 - Shell icons and installed-app selection, file/folder/web shortcuts, launch arguments, custom icons and labels.
+- Drag a desktop app shortcut onto empty bar space or a custom group to pin its executable. The pin keeps its label, arguments, working folder and custom icon, and still works if you move or delete the original shortcut. Shortcuts without a resolvable executable keep their original target.
 - Running-window discovery, current virtual-desktop filtering, monitor filters, activation, normal close, thumbnail/list pickers, pinning, and MRU switching.
 - Native appbar space reservations, auto-hide, floating reveal shortcuts, drag positioning and edge snap previews.
 - Per-monitor Windows taskbar visibility, explicit restore commands, and a separate recovery-helper process.

@@ -10,17 +10,55 @@ public static class ShellService {
   if(item.Kind==ItemKind.Website){if(!Uri.TryCreate(item.Target,UriKind.Absolute,out var uri)||uri.Scheme is not ("http" or "https"))throw new InvalidOperationException("Enter an http or https website address.");Process.Start(new ProcessStartInfo(uri.AbsoluteUri){UseShellExecute=true});return;}
   if(!string.IsNullOrEmpty(item.AppId)){Process.Start(new ProcessStartInfo("explorer.exe"){UseShellExecute=true,Arguments="shell:AppsFolder\\"+item.AppId});return;}
   if(!Exists(item)){MessageBox.Show($"The target is unavailable:\n{item.Target}\n\nUse Edit item to locate it.","Missing shortcut");return;}
-  var start=new ProcessStartInfo(item.Target){UseShellExecute=true,Arguments=item.Arguments,WorkingDirectory=item.WorkingDirectory};
+  var start=new ProcessStartInfo(item.Target){UseShellExecute=true,Arguments=item.Arguments,WorkingDirectory=item.WorkingDirectory,WindowStyle=item.WindowStyle};
+  if(item.RunAsAdministrator)start.Verb="runas";
   if(files?.Length>0)start.Arguments+=(start.Arguments.Length>0?" ":"")+string.Join(" ",files.Select(Quote));
   Process.Start(start);
  }catch(Exception e){Log.Write(e);MessageBox.Show(e.Message,"Could not open item");}}
  public static string Quote(string s)=>"\""+s.Replace("\"","\\\"")+"\"";
  public static bool Exists(Item i)=>i.Kind is ItemKind.Website or ItemKind.Group or ItemKind.Separator or ItemKind.Spacer||i.AppId.Length>0||File.Exists(i.Target)||Directory.Exists(i.Target);
- public static string Identity(Item item){if(item.AppId.Length>0)return item.AppId;if(resolved.TryGetValue(item.Target,out var path))return path;path=item.Target;
-  if(Path.GetExtension(path).Equals(".lnk",StringComparison.OrdinalIgnoreCase))try{dynamic w=Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;dynamic shortcut=w.CreateShortcut(path);path=(string)shortcut.TargetPath;Marshal.FinalReleaseComObject(shortcut);Marshal.FinalReleaseComObject(w);}catch{}
-  resolved[item.Target]=path.ToLowerInvariant();return resolved[item.Target];
+ public static Item FromDroppedPath(string path)
+ {
+  var item = Item.FromPath(path);
+  if (!ShellShortcut.IsLink(path)) return item;
+
+  var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+  var links = new List<ShellShortcut>();
+  string target = path;
+  while (ShellShortcut.IsLink(target))
+  {
+   if (links.Count >= 16 || !seen.Add(target) || ShellShortcut.Read(target) is not { ShellManaged: false } link)
+    return item;
+   target = link.Target;
+   if (!Path.IsPathFullyQualified(target)) return item;
+   links.Add(link);
+  }
+  if (!Path.GetExtension(target).Equals(".exe", StringComparison.OrdinalIgnoreCase) || !File.Exists(target))
+   return item;
+
+  item.Target = target;
+  item.Arguments = string.Join(" ", links.AsEnumerable().Reverse().Select(link => link.Arguments).Where(args => args.Length > 0));
+  item.WorkingDirectory = links.Select(link => link.WorkingDirectory).FirstOrDefault(dir => dir.Length > 0) ?? "";
+  item.RunAsAdministrator = links.Any(link => link.RunAsAdministrator);
+  item.WindowStyle = links.Select(link => link.WindowStyle).FirstOrDefault(style => style != ProcessWindowStyle.Normal);
+  if (links.FirstOrDefault(link => File.Exists(link.IconPath) && !ShellShortcut.IsLink(link.IconPath)) is { } icon)
+  {
+   item.Icon = icon.IconPath;
+   item.IconIndex = icon.IconIndex;
+  }
+  return item;
+ }
+ public static string Identity(Item item){
+  if(item.AppId.Length>0)return item.AppId;
+  if(!ShellShortcut.IsLink(item.Target))return item.Target.ToLowerInvariant();
+  if(resolved.TryGetValue(item.Target,out var path))return path;
+  path=ShellShortcut.Read(item.Target)?.Target;
+  if(string.IsNullOrEmpty(path))path=item.Target;
+  if(resolved.Count>=512)resolved.Clear();
+  return resolved[item.Target]=path.ToLowerInvariant();
  }
  public static ImageSource? Icon(Item i,bool hideShortcutBadge=false){if(hideShortcutBadge&&i.Icon.Length==0&&Path.GetExtension(i.Target).Equals(".lnk",StringComparison.OrdinalIgnoreCase)){string cleanKey="clean:"+i.Target;if(icons.TryGetValue(cleanKey,out var clean))return clean;clean=ShortcutIcon(i.Target);icons[cleanKey]=clean;return clean;}if(hideShortcutBadge&&i.Icon.Length==0&&i.AppId.Length==0){var extension=Path.GetExtension(i.Target);if(extension.Equals(".url",StringComparison.OrdinalIgnoreCase))return InternetShortcutIcon(i.Target);if(extension.Equals(".appref-ms",StringComparison.OrdinalIgnoreCase))return null;}string path=i.Icon.Length>0?i.Icon:i.Target;if(i.AppId.Length>0&&i.Icon.Length==0){string cacheKey="app:"+i.AppId;if(icons.TryGetValue(cacheKey,out var appIcon))return appIcon;appIcon=ShellIdentity.AppIcon(i.AppId);icons[cacheKey]=appIcon;return appIcon;} if(i.Kind==ItemKind.Website&&i.Icon.Length==0)return null;if(path.Length==0)return null;
+  if(i.Icon.Length>0 && i.IconIndex is int index && ResourceIcon(path,index) is { } customIcon)return customIcon;
   if(icons.TryGetValue(path,out var cached))return cached;
   ImageSource? result=null;try{
    if(i.Icon.Length>0&&Path.GetExtension(path).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".bmp"){var b=new BitmapImage();b.BeginInit();b.CacheOption=BitmapCacheOption.OnLoad;b.UriSource=new Uri(Path.GetFullPath(path));b.EndInit();b.Freeze();result=b;}
@@ -31,8 +69,36 @@ public static class ShellService {
   if(i.IsGroup&&i.Icon.Length==0&&collage){var grid=new System.Windows.Controls.Primitives.UniformGrid{Rows=2,Columns=2,Width=size,Height=size};var children=GroupItems(i).Take(4).ToArray();if(children.Length>0){foreach(var c in children)grid.Children.Add(Visual(c,size/2-2,false,i.HideShortcutBadges));return grid;}}
   var icon=Icon(i,hideShortcutBadge);return icon!=null?new Image{Source=icon,Width=size,Height=size,Margin=new Thickness(2)}:new TextBlock{Text=i.IsGroup?"▦":i.Kind==ItemKind.Website||Path.GetExtension(i.Target).Equals(".url",StringComparison.OrdinalIgnoreCase)?"◎":"◇",FontSize=size*.8,Width=size,Height=size,TextAlignment=TextAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
  }
- static ImageSource? InternetShortcutIcon(string path){try{var values=File.ReadLines(path).Select(line=>line.Split('=',2)).Where(parts=>parts.Length==2).GroupBy(parts=>parts[0].Trim(),StringComparer.OrdinalIgnoreCase).ToDictionary(g=>g.Key,g=>g.Last()[1].Trim(),StringComparer.OrdinalIgnoreCase);if(!values.TryGetValue("IconFile",out var file))return null;file=Environment.ExpandEnvironmentVariables(file.Trim('"'));if(!File.Exists(file))return null;int index=values.TryGetValue("IconIndex",out var raw)&&int.TryParse(raw,out int parsed)?parsed:0;string key="url-icon:"+file+","+index;if(icons.TryGetValue(key,out var cached))return cached;Native.ExtractIconEx(file,index,out var large,out var small,1);try{var handle=large!=0?large:small;if(handle==0)return null;var image=Imaging.CreateBitmapSourceFromHIcon(handle,Int32Rect.Empty,BitmapSizeOptions.FromEmptyOptions());image.Freeze();icons[key]=image;return image;}finally{if(large!=0)Native.DestroyIcon(large);if(small!=0)Native.DestroyIcon(small);}}catch(Exception e){Log.Write(e.Message);return null;}}
- static ImageSource? ShortcutIcon(string path){object? shell=null,link=null;try{dynamic w=Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;shell=w;dynamic shortcut=w.CreateShortcut(path);link=shortcut;string location=(string)shortcut.IconLocation;int index=0;int comma=location.LastIndexOf(',');if(comma>=0&&int.TryParse(location[(comma+1)..],out index))location=location[..comma];location=Environment.ExpandEnvironmentVariables(location.Trim().Trim('"'));if(File.Exists(location)){Native.ExtractIconEx(location,index,out var large,out var small,1);try{var icon=large!=0?large:small;if(icon!=0){var image=Imaging.CreateBitmapSourceFromHIcon(icon,Int32Rect.Empty,BitmapSizeOptions.FromEmptyOptions());image.Freeze();return image;}}finally{if(large!=0)Native.DestroyIcon(large);if(small!=0)Native.DestroyIcon(small);}}string target=(string)shortcut.TargetPath;if(!string.IsNullOrWhiteSpace(target)&&!Path.GetExtension(target).Equals(".lnk",StringComparison.OrdinalIgnoreCase))return Icon(new Item{Target=target});}catch(Exception e){Log.Write(e.Message);}finally{if(link!=null)Marshal.FinalReleaseComObject(link);if(shell!=null)Marshal.FinalReleaseComObject(shell);}return null;}
+ static ImageSource? InternetShortcutIcon(string path){try{var values=File.ReadLines(path).Select(line=>line.Split('=',2)).Where(parts=>parts.Length==2).GroupBy(parts=>parts[0].Trim(),StringComparer.OrdinalIgnoreCase).ToDictionary(g=>g.Key,g=>g.Last()[1].Trim(),StringComparer.OrdinalIgnoreCase);if(!values.TryGetValue("IconFile",out var file))return null;file=Environment.ExpandEnvironmentVariables(file.Trim('"'));if(!File.Exists(file))return null;int index=values.TryGetValue("IconIndex",out var raw)&&int.TryParse(raw,out int parsed)?parsed:0;return ResourceIcon(file,index);}catch(Exception e){Log.Write(e.Message);return null;}}
+ static ImageSource? ResourceIcon(string path, int index)
+ {
+  string key = $"resource:{index}:{path}";
+  if (icons.TryGetValue(key, out var cached)) return cached;
+  Native.ExtractIconEx(path, index, out var large, out var small, 1);
+  try
+  {
+   var handle = large != 0 ? large : small;
+   ImageSource? image = null;
+   if (handle != 0)
+   {
+    image = Imaging.CreateBitmapSourceFromHIcon(handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+    image.Freeze();
+   }
+   if (icons.Count >= 512) icons.Clear();
+   return icons[key] = image;
+  }
+  finally
+  {
+   if (large != 0) Native.DestroyIcon(large);
+   if (small != 0) Native.DestroyIcon(small);
+  }
+ }
+ static ImageSource? ShortcutIcon(string path)
+ {
+  if (ShellShortcut.Read(path) is not { } link) return null;
+  if (File.Exists(link.IconPath) && ResourceIcon(link.IconPath, link.IconIndex) is { } icon) return icon;
+  return link.Target.Length > 0 && !ShellShortcut.IsLink(link.Target) ? Icon(new Item { Target = link.Target }) : null;
+ }
  public static List<Item> GroupItems(Item group){IEnumerable<Item> entries=group.Children;
   if(group.Kind==ItemKind.LinkedFolder){try{entries=Directory.EnumerateFileSystemEntries(group.Target).Where(p=>{var ext=Path.GetExtension(p).ToLowerInvariant();return group.Filter switch{FolderFilter.Shortcuts=>ext is ".lnk" or ".url" or ".appref-ms",FolderFilter.Extensions=>group.Extensions.Split(';',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries).Contains(ext,StringComparer.OrdinalIgnoreCase),_=>true};}).Select(Item.FromPath).ToList();}catch(Exception e){Log.Write(e.Message);entries=[];}}
   var list=entries.ToList();IEnumerable<Item> sorted=group.Sort switch{

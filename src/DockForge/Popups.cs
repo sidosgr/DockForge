@@ -16,7 +16,11 @@ public sealed class GroupWindow : Window {
   SourceInitialized+=(_,_)=>Native.Effects(new WindowInteropHelper(this).Handle,Ui.Dark(owner.Model),owner.Model.Blur,2);Render();
   KeyDown+=(_,e)=>{if(e.Key==Key.Escape){if(renaming)CancelRename();else Close();e.Handled=true;}else if(e.Key==Key.F2){BeginRename();e.Handled=true;}};Deactivated+=(_,_)=>DismissIfInactive();SizeChanged+=(_,_)=>{if(IsLoaded){Group.PopupWidth=ActualWidth;Group.PopupHeight=ActualHeight;}};Closing+=(_,_)=>closing=true;Closed+=(_,_)=>{watcher?.Dispose();debounce.Stop();};Ui.ArrowNavigation(items);
   debounce.Tick+=(_,_)=>{debounce.Stop();Render();};if(group.Kind==ItemKind.LinkedFolder&&Directory.Exists(group.Target)){watcher=new(group.Target){NotifyFilter=NotifyFilters.FileName|NotifyFilters.DirectoryName|NotifyFilters.LastWrite,EnableRaisingEvents=true};FileSystemEventHandler changed=(_,_)=>Dispatcher.BeginInvoke(()=>{debounce.Stop();debounce.Start();});watcher.Created+=changed;watcher.Deleted+=changed;watcher.Changed+=changed;watcher.Renamed+=(_,_)=>Dispatcher.BeginInvoke(()=>{debounce.Stop();debounce.Start();});}
-  AllowDrop=!bar.Model.Locked;Drop+=(_,e)=>{if(Group.Kind!=ItemKind.Group||bar.Model.Locked)return;if(e.Data.GetData(DataFormats.FileDrop) is string[] files){Group.Children.AddRange(files.Select(Item.FromPath));SaveAndRender();}e.Handled=true;};
+  AllowDrop = !bar.Model.Locked;
+  void HandleFileDrop(object sender, DragEventArgs e) =>
+      ShortcutDrop.Handle(e, Group.Children, Group.Kind == ItemKind.Group && !bar.Model.Locked, SaveAndRender);
+  DragOver += HandleFileDrop;
+  Drop += HandleFileDrop;
  }
  void TrackMenu(ContextMenu menu){menu.Opened+=(_,_)=>contextDepth++;menu.Closed+=(_,_)=>{contextDepth=Math.Max(0,contextDepth-1);DismissIfInactive();};}
  void DismissIfInactive()=>Dispatcher.BeginInvoke(()=>{if(!closing&&IsLoaded&&!IsActive&&!Group.KeepOpen&&!renaming&&contextDepth==0&&OwnedWindows.Count==0)Close();});
